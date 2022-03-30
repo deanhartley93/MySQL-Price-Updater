@@ -26,7 +26,7 @@ if ($db->connect_errno) {
 
 
 
-//Upon uploading file
+//uploading file
 if (isset($_POST['Import'])) {
 
     // Allowed mime types
@@ -47,24 +47,29 @@ if (isset($_POST['Import'])) {
             // Parse data from CSV file line by line
             while (($line = fgetcsv($csvFile)) !== FALSE) {
 
-                // Get row data
-                $itemId   = $line[0];
-                $price  = $line[1];
-                $startDate  = $line[2];
-                $endDate = $line[3];
-                $memo = $line[4];
-                $priceLevel = $line[5];
-                $categoryManager = $line[6];
+                //Check if any of these are missing- itemId, price, startDate, priceLevel
+                if (!$line[0] == NULL or !$line[1] == NULL or !$line[2] == NULL or !$line[3] == NULL) {
+                    // Get row data
+                    $itemId   = $line[0];
+                    $price  = $line[1];
+                    $startDate  = $line[2];
+                    $endDate = $line[3];
+                    $memo = $line[4];
+                    $priceLevel = $line[5];
+                    $categoryManager = $line[6];
 
-                //Check if itemID exists in the table
-                $sql = "SELECT itemId FROM `test`";
-                $results = $db->query($sql);
-                if ($row != $itemId) {
-                    // Insert item data in the database
-                    $db->query("INSERT INTO test (itemId, price, startDate, endDate, memo, priceLevel, categoryManager) VALUES ('" . $itemId . "', '" . $price . "', '" . $startDate . "', '" . $endDate . "', '" . $memo . "', '" . $priceLevel . "','" . $categoryManager . "')");
+                    //Check if itemID exists in the table
+                    $sql = "SELECT itemId FROM `test`";
+                    $results = $db->query($sql);
+                    if ($row != $itemId) {
+                        // Insert item data in the database
+                        $db->query("INSERT INTO test (itemId, price, startDate, endDate, memo, priceLevel, categoryManager) VALUES ('" . $itemId . "', '" . $price . "', '" . $startDate . "', '" . $endDate . "', '" . $memo . "', '" . $priceLevel . "','" . $categoryManager . "')");
+                    } else {
+                        // Update member data in the database
+                        $db->query("UPDATE test SET itemId = '" . $itemId . "', price = '" . $price . "', startDate = '" . $startDate . "', endDate = '" . $endDate . "', memo = '" . $memo . "', priceLevel = '" . $priceLevel . "', categoryManager = '" . $categoryManager . "'");
+                    }
                 } else {
-                    // Update member data in the database
-                    $db->query("UPDATE test SET itemId = '" . $itemId . "', price = '" . $price . "', startDate = '" . $startDate . "', endDate = '" . $endDate . "', memo = '" . $memo . "', priceLevel = '" . $priceLevel . "', categoryManager = '" . $categoryManager . "'");
+                    echo '<script>alert("Required Fields Missing from File!")</script>';
                 }
             }
 
@@ -76,5 +81,40 @@ if (isset($_POST['Import'])) {
         }
     } else {
         $qstring = '?status=invalid_file';
+    }
+}
+
+
+// Export from database 
+if (isset($_POST['Export'])) {
+    $query = $db->query("SELECT * FROM test ORDER BY itemId ASC");
+
+    if ($query->num_rows > 0) {
+        $delimiter = ",";
+        $filename = "pricing_export" . date('Y-m-d') . ".csv";
+
+        // Create a file pointer 
+        $f = fopen('php://memory', 'w');
+
+        // Set column headers 
+        $fields = array('itemId', 'price', 'startDate', 'endDate', 'memo', 'priceLevel', 'categoryManager');
+        fputcsv($f, $fields, $delimiter);
+
+        // Output each row of the data, format line as csv and write to file pointer 
+        while ($row = $query->fetch_assoc()) {
+            $status = ($row['status'] == 1) ? 'Active' : 'Inactive';
+            $lineData = array($row['itemId'], $row['price'], $row['startDate'], $row['endDate'], $row['memo'], $row['priceLevel'], $row['categoryManager']);
+            fputcsv($f, $lineData, $delimiter);
+        }
+
+        // Move back to beginning of file 
+        fseek($f, 0);
+
+        // Set headers to download file rather than displayed 
+        header('Content-Type: text/csv');
+        header('Content-Disposition: attachment; filename="' . $filename . '";');
+
+        //output all remaining data on a file pointer 
+        fpassthru($f);
     }
 }
